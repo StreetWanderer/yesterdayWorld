@@ -63,7 +63,7 @@ def writeCaption(date, hasImages):
         caption ="<p>On this great day of {date}</p> We note that:<br/>{link}"
         tweet = "Yesterday happened. [URL]"
     else:
-        caption ="<p>The world was nowhere to be found on {date}</p>But we can note that: {link}"
+        caption ="<p>The world was nowhere to be found on {date}</p>But we can note that:<br/>{link}"
         tweet = "Yesterday the world was nowhere to be found. [URL]"
 
     caption = caption.format(date=date.strftime('%A %d %B %Y'),link=formattedLink)
@@ -72,7 +72,10 @@ def writeCaption(date, hasImages):
 
 def postToTumblr(gifPath, text, date, giphyPath):
 	#create the post on Tumblr.
-    tumblrClient = pytumblr.TumblrRestClient(config.CONSUMER_KEY,config.CONSUMER_SECRET,config.OAUTH_TOKEN,config.OAUTH_SECRET)
+    tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
+                                            config.TUMBLR_CONSUMER_SECRET,
+                                            config.TUMBLR_OAUTH_TOKEN,
+                                            config.TUMBLR_OAUTH_SECRET)
     if gifPath is not None:
         post = tumblrClient.create_photo('yesterdaybot',
                                             state="published",
