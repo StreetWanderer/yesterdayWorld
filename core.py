@@ -1,7 +1,6 @@
 from datetime import date, timedelta
-import imageio
-import pytumblr
-import json, requests, sys
+import json, sys
+import imageio, pytumblr, requests, tweepy
 import config
 
 def getImagesInfo(date):
@@ -61,40 +60,43 @@ def writeCaption(date, hasImages):
 
     if hasImages:
         caption ="<p>On this great day of {date}</p> We note that:<br/>{link}"
-        tweet = "Yesterday happened. [URL]"
+        tweet = "Yesterday happened. {link}"
     else:
         caption ="<p>The world was nowhere to be found on {date}</p>But we can note that:<br/>{link}"
-        tweet = "Yesterday the world was nowhere to be found. [URL]"
+        tweet = "Yesterday the world was nowhere to be found. {link}"
 
     caption = caption.format(date=date.strftime('%A %d %B %Y'),link=formattedLink)
 
     return {'caption':caption, 'tweet':tweet}
 
-def postToTumblr(gifPath, text, date, giphyPath):
+def postToTumblr(gifPath, text, date):
 	#create the post on Tumblr.
     tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
                                             config.TUMBLR_CONSUMER_SECRET,
                                             config.TUMBLR_OAUTH_TOKEN,
                                             config.TUMBLR_OAUTH_SECRET)
-    if gifPath is not None:
-        post = tumblrClient.create_photo('yesterdaybot',
-                                            state="published",
-                                            tags=["space", "yesterday", "world","news", "gif", "earth", date.strftime('%Y-%m-%d')],
-                                            data=gifPath,
-                                            caption=text['caption'],
-                                            tweet=text['tweet'],
-                                            link=config.DSCOVR_BASE_URL+"/#"+date.strftime('%Y-%m-%d'),
-                                            )
-    else:
-        post = tumblrClient.create_photo('yesterdaybot',
-                                            state="published",
-                                            tags=["space", "yesterday", "world","news", "gif", "earth", date.strftime('%Y-%m-%d')],
-                                            caption=text['caption'],
-                                            tweet=text['tweet'],
-                                            link=config.DSCOVR_BASE_URL+"/#"+date.strftime('%Y-%m-%d'),
-                                            source=giphyPath)
+    post = tumblrClient.create_photo('yesterdaybot',
+                                        state="published",
+                                        tags=["space", "yesterday", "world","news", "gif", "earth", date.strftime('%Y-%m-%d')],
+                                        data=gifPath,
+                                        caption=text['caption'],
+                                        tweet=text['tweet'],
+                                        link=config.DSCOVR_BASE_URL+"/#"+date.strftime('%Y-%m-%d'),
+                                        )
 
     print "Published to Tumblr"
+    return post
+
+def postToTwitter(gifPath, text, tumblrId):
+
+    auth = tweepy.OAuthHandler(config.TWITTER_CONSUMER_KEY, config.TWITTER_CONSUMER_SECRET)
+    auth.set_access_token(config.TWITTER_OAUTH_TOKEN, config.TWITTER_OAUTH_SECRET)
+
+    api = tweepy.API(auth)
+
+    api.update_with_media(gifPath, text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId), None, None, None, None,None, gifPath)
+
+    print "Published to Twitter"
 
 
 
@@ -107,7 +109,6 @@ yesterday = (date.today() - timedelta(1))
 print "getting images for {date}".format(date=yesterday)
 imageData = getImagesInfo(yesterday)
 gif = None
-giphyPath = None
 if len(imageData) > 0:
     #Download images for yesterday
     gifFramesArray = downloadImages(imageData, 'png')
@@ -119,7 +120,7 @@ if len(imageData) > 0:
     gif = config.GIF_PATH
 else:
     print "The world stopped"
-    giphyPath = 'http://i.giphy.com/NGIfqtcS81qi4.gif'
+    gif = config.GIF_PATH_NODATA
     #Use a gif from Giphy (i.e. "World stopped") as illustration?
 
 #Get yesterday headline from TheGuardian
@@ -129,4 +130,7 @@ text = writeCaption(yesterday, len(imageData) > 0)
 #print text
 print "Posting to Tumblr"
 #combine the gif and headlines to upload to Tumblr
-postToTumblr(gif, text, yesterday, giphyPath)
+post = postToTumblr(gif, text, yesterday)
+
+#print "Posting to Twitter"
+#postToTwitter(gif, text, str(post['id']))
