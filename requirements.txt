@@ -9,5 +9,5 @@ PyTumblr==0.0.6
 requests==2.8.1
 requests-oauthlib==0.5.0
 six==1.10.0
-twython==3.3.0
+tweepy==3.4.0
 wheel==0.24.0
