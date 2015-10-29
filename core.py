@@ -118,8 +118,8 @@ def postToTwitter(gifPath, text, tumblrId):
 
     api = tweepy.API(auth)
 
-    #api.update_with_media(filename=gifPath, status=text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId))
-    api.update_status(status='Hello World')
+    api.update_with_media(filename=gifPath, status=text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId))
+    #api.update_status(status='Hello World')
 
     print "Published to Twitter"
 
@@ -127,11 +127,6 @@ def postToTwitter(gifPath, text, tumblrId):
 
 #Find the images for yesterday
 yesterday = (date.today() - timedelta(1))
-
-
-
-postToTwitter(config.GIF_PATH, {'caption':'hello', 'tweet':'The future is here'}, "387468274")
-sys.exit()
 
 if wasAlreadyPosted(yesterday):
     print "Already posted, skipping"
@@ -163,9 +158,7 @@ else:
 print "obtaining caption text from The Guardian"
 text = writeCaption(yesterday, len(imageData) > 0)
 
-#print text
 print "Posting to Tumblr"
-#combine the gif and headlines to upload to Tumblr
 post = postToTumblr(gif, text, yesterday)
 
 print "Posting to Twitter"
