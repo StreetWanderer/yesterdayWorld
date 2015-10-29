@@ -20,5 +20,5 @@ TWITTER_OAUTH_TOKEN = ''
 TWITTER_OAUTH_SECRET = ''
 
 #SYSTEM
-GIF_PATH = './test.gif'
+GIF_PATH = './earth.gif'
 GIF_PATH_NODATA = './noData.gif'

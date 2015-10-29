@@ -1,6 +1,10 @@
-from datetime import date, timedelta
-import json, sys
+from PIL import Image
+from numpy import array
 import imageio, pytumblr, requests, tweepy
+
+import json, sys
+from datetime import date, timedelta
+
 import config
 
 def getImagesInfo(date):
@@ -23,8 +27,9 @@ def downloadImages(imageNames, format):
     for img in imageNames:
         path = config.DSCOVR_BASE_URL + config.DSCOVR_IMG_PATH.format(format=format, image=img)
         #path = "http://127.0.0.1:1026/"+img+".png"
-        img = imageio.imread(path)
-        imageFrames.append(img)
+        image = Image.fromarray(imageio.imread(path))
+        image = image.resize((768,768), Image.ANTIALIAS)
+        imageFrames.append(array(image))
 
     return imageFrames
 
@@ -69,6 +74,20 @@ def writeCaption(date, hasImages):
 
     return {'caption':caption, 'tweet':tweet}
 
+def wasAlreadyPosted(date):
+
+    tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
+                                            config.TUMBLR_CONSUMER_SECRET,
+                                            config.TUMBLR_OAUTH_TOKEN,
+                                            config.TUMBLR_OAUTH_SECRET)
+    postList = tumblrClient.posts('yesterdaybot', tag=date.strftime('%Y-%m-%d'))
+
+    if len(postList['posts']) > 0:
+        if date.strftime('%Y-%m-%d') in postList['posts'][0]['tags']:
+            return True
+
+    return False
+
 def postToTumblr(gifPath, text, date):
 	#create the post on Tumblr.
     tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
@@ -84,7 +103,12 @@ def postToTumblr(gifPath, text, date):
                                         link=config.DSCOVR_BASE_URL+"/#"+date.strftime('%Y-%m-%d'),
                                         )
 
-    print "Published to Tumblr"
+    if 'id' in post:
+        print "Published to Tumblr"
+    else:
+        print "Error posting to Tumblr!"
+        print post
+        sys.exit()
     return post
 
 def postToTwitter(gifPath, text, tumblrId):
@@ -94,7 +118,8 @@ def postToTwitter(gifPath, text, tumblrId):
 
     api = tweepy.API(auth)
 
-    api.update_with_media(gifPath, text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId), None, None, None, None,None, gifPath)
+    #api.update_with_media(filename=gifPath, status=text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId))
+    api.update_status(status='Hello World')
 
     print "Published to Twitter"
 
@@ -103,9 +128,15 @@ def postToTwitter(gifPath, text, tumblrId):
 #Find the images for yesterday
 yesterday = (date.today() - timedelta(1))
 
-#yesterday = date.fromtimestamp(1445731200) # 10/25/2015
-#imageData = ['epic_1b_20151022005948_00', 'epic_1b_20151022024751_00', 'epic_1b_20151022081200_00', 'epic_1b_20151022100003_00', 'epic_1b_20151022114806_00', 'epic_1b_20151022133609_00', 'epic_1b_20151022152413_00', 'epic_1b_20151022171216_00', 'epic_1b_20151022190018_00']
-#if False:
+
+
+postToTwitter(config.GIF_PATH, {'caption':'hello', 'tweet':'The future is here'}, "387468274")
+sys.exit()
+
+if wasAlreadyPosted(yesterday):
+    print "Already posted, skipping"
+    sys.exit()
+
 print "getting images for {date}".format(date=yesterday)
 imageData = getImagesInfo(yesterday)
 gif = None
@@ -115,13 +146,18 @@ if len(imageData) > 0:
     print "obtained {x} images".format(x=len(gifFramesArray))
     #Generate the gif based on yesterday images
     print "generating gif..."
-    imageio.mimwrite(config.GIF_PATH, gifFramesArray, loop=0, duration=0.6, quantizer='wu', subrectangles=True)
+    imageio.mimwrite(config.GIF_PATH, gifFramesArray, loop=0, duration=0.6, quantizer='wu', subrectangles=False)
     print "gif saved to {gif}".format(gif=config.GIF_PATH)
     gif = config.GIF_PATH
 else:
     print "The world stopped"
-    gif = config.GIF_PATH_NODATA
+    sys.exit()
+    #gif = config.GIF_PATH_NODATA
     #Use a gif from Giphy (i.e. "World stopped") as illustration?
+
+
+
+
 
 #Get yesterday headline from TheGuardian
 print "obtaining caption text from The Guardian"
@@ -132,5 +168,5 @@ print "Posting to Tumblr"
 #combine the gif and headlines to upload to Tumblr
 post = postToTumblr(gif, text, yesterday)
 
-#print "Posting to Twitter"
-#postToTwitter(gif, text, str(post['id']))
+print "Posting to Twitter"
+postToTwitter(gif, text, str(post['id']))
