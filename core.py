@@ -1,8 +1,8 @@
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from numpy import array
 import imageio, pytumblr, requests, tweepy
 
-import json, sys
+import json, sys, textwrap
 from datetime import date, timedelta
 
 import config
@@ -21,17 +21,37 @@ def getImagesInfo(date):
 
     return parsedData;
 
-def downloadImages(imageNames, format):
+def downloadImages(imageNames, format, headline):
     #Download the given DSCOVR images as a byteArray
     imageFrames = []
+    title = headline['fields']['headline'].encode('utf_8')
     for img in imageNames:
         path = config.DSCOVR_BASE_URL + config.DSCOVR_IMG_PATH.format(format=format, image=img)
-        #path = "http://127.0.0.1:1026/"+img+".png"
+
         image = Image.fromarray(imageio.imread(path))
         image = image.resize((768,768), Image.ANTIALIAS)
-        imageFrames.append(array(image))
+        im = writeOnImage(image, title)
+
+        imageFrames.append(array(im))
 
     return imageFrames
+
+def writeOnImage(image, headline):
+    base = image.convert('RGBA')
+
+    txt = Image.new('RGBA', base.size, (255,255,255,0))
+    fnt = ImageFont.truetype('./Anonymous.ttf', 25)
+    d = ImageDraw.Draw(txt)
+    height = 700
+    splitHeadline = textwrap.wrap(headline, 44)
+    for line in splitHeadline:
+        d.text((10,height), line, font=fnt, fill=(255,255,255,255))
+        height = height + 35
+
+    im = Image.alpha_composite(base, txt)
+
+    return im
+
 
 def getGuardianHeadline(date):
     #Get the frontmost page of world news in the Guardian, paper edition
@@ -50,9 +70,9 @@ def getGuardianHeadline(date):
 
     return headline
 
-def writeCaption(date, hasImages):
+def writeCaption(date, headline):
     #Generate the text of the Tumblr post based on the Guadian Headline
-    headline = getGuardianHeadline(date + timedelta(1))
+    #headline = getGuardianHeadline(date + timedelta(1))
     title = headline['fields']['headline'].encode('utf_8')
     if 'trailText' in headline['fields']:
         standfirst = headline['fields']['trailText']
@@ -62,13 +82,12 @@ def writeCaption(date, hasImages):
     #[FIXME] Noticed that trailText can contain html code, it's usually <strong>, do I leave it?
 
     formattedLink = '<a href="{link}">{headline}</a><br/>{standfirst}'.format(link=headline['webUrl'], headline=title, standfirst=standfirst)
+    caption ="<p>On this great day of {date}</p> We note that:<br/>{link}"
+    tweet = "Yesterday happened. {link}"
 
-    if hasImages:
-        caption ="<p>On this great day of {date}</p> We note that:<br/>{link}"
-        tweet = "Yesterday happened. {link}"
-    else:
-        caption ="<p>The world was nowhere to be found on {date}</p>But we can note that:<br/>{link}"
-        tweet = "Yesterday the world was nowhere to be found. {link}"
+        # Idea if no data for that date
+        #caption ="<p>The world was nowhere to be found on {date}</p>But we can note that:<br/>{link}"
+        #tweet = "Yesterday the world was nowhere to be found. {link}"
 
     caption = caption.format(date=date.strftime('%A %d %B %Y'),link=formattedLink)
 
@@ -137,7 +156,8 @@ imageData = getImagesInfo(yesterday)
 gif = None
 if len(imageData) > 0:
     #Download images for yesterday
-    gifFramesArray = downloadImages(imageData, 'png')
+    headline = getGuardianHeadline(date.today())
+    gifFramesArray = downloadImages(imageData, 'png', headline)
     print "obtained {x} images".format(x=len(gifFramesArray))
     #Generate the gif based on yesterday images
     print "generating gif..."
@@ -152,11 +172,9 @@ else:
 
 
 
-
-
 #Get yesterday headline from TheGuardian
 print "obtaining caption text from The Guardian"
-text = writeCaption(yesterday, len(imageData) > 0)
+text = writeCaption(yesterday, headline)
 
 print "Posting to Tumblr"
 post = postToTumblr(gif, text, yesterday)
