@@ -89,7 +89,7 @@ def writeCaption(date, headline):
         #caption ="<p>The world was nowhere to be found on {date}</p>But we can note that:<br/>{link}"
         #tweet = "Yesterday the world was nowhere to be found. {link}"
 
-    caption = caption.format(date=date.strftime('%A %d %B %Y'),link=formattedLink)
+    caption = caption.format(date=date.strftime('%A, %B %d %Y'),link=formattedLink)
 
     return {'caption':caption, 'tweet':tweet}
 
