@@ -2,7 +2,7 @@ from PIL import Image, ImageDraw, ImageFont
 from numpy import array
 import imageio, pytumblr, requests, tweepy
 
-import json, sys, textwrap
+import json, sys, textwrap, random
 from datetime import date, timedelta
 
 import config
@@ -55,7 +55,7 @@ def writeOnImage(image, headline):
 
 def getGuardianHeadline(date):
     #Get the frontmost page of world news in the Guardian, paper edition
-    newsList = requests.get(config.GUARDIAN_REQUEST.format(api_key=config.GUARDIAN_APIKEY, date=(date).strftime('%Y-%m-%d')))
+    newsList = requests.get(config.GUARDIAN_REQUEST.format(api_key=config.GUARDIAN_APIKEY, date=(date).strftime(config.DATE_SHORTFORM)))
     jsonData = json.loads(newsList.text)
 
     results = jsonData['response']['results']
@@ -82,14 +82,17 @@ def writeCaption(date, headline):
     #[FIXME] Noticed that trailText can contain html code, it's usually <strong>, do I leave it?
 
     formattedLink = '<a href="{link}">{headline}</a><br/>{standfirst}'.format(link=headline['webUrl'], headline=title, standfirst=standfirst)
-    caption ="<p>On this great day of {date}</p> We note that:<br/>{link}"
-    tweet = "Yesterday happened. {link}"
+    caption ="<p>On this great day of {date} {earth}.</p> We note that:<br/>{link}"
+    tweet = "On {date} {earth}:"
 
+    earth = random.choice(config.EARTH_METAPHORS)
         # Idea if no data for that date
         #caption ="<p>The world was nowhere to be found on {date}</p>But we can note that:<br/>{link}"
         #tweet = "Yesterday the world was nowhere to be found. {link}"
 
-    caption = caption.format(date=date.strftime('%A, %B %d %Y'),link=formattedLink)
+    caption = caption.format(date=date.strftime(config.DATE_LONGFORM),link=formattedLink, earth=earth)
+    tweet = tweet.format(date=date.strftime(config.DATE_LONGFORM), earth=earth)
+    tweet = tweet + ' {link}'
 
     return {'caption':caption, 'tweet':tweet}
 
@@ -99,10 +102,10 @@ def wasAlreadyPosted(date):
                                             config.TUMBLR_CONSUMER_SECRET,
                                             config.TUMBLR_OAUTH_TOKEN,
                                             config.TUMBLR_OAUTH_SECRET)
-    postList = tumblrClient.posts('yesterdaybot', tag=date.strftime('%Y-%m-%d'))
+    postList = tumblrClient.posts('yesterdaybot', tag=date.strftime(config.DATE_SHORTFORM))
 
     if len(postList['posts']) > 0:
-        if date.strftime('%Y-%m-%d') in postList['posts'][0]['tags']:
+        if date.strftime(config.DATE_SHORTFORM) in postList['posts'][0]['tags']:
             return True
 
     return False
@@ -115,11 +118,11 @@ def postToTumblr(gifPath, text, date):
                                             config.TUMBLR_OAUTH_SECRET)
     post = tumblrClient.create_photo('yesterdaybot',
                                         state="published",
-                                        tags=["space", "yesterday", "world","news", "gif", "earth", date.strftime('%Y-%m-%d')],
+                                        tags=["space", "yesterday", "world","news", "gif", "earth", date.strftime(config.DATE_SHORTFORM)],
                                         data=gifPath,
                                         caption=text['caption'],
                                         tweet=text['tweet'],
-                                        link=config.DSCOVR_BASE_URL+"/#"+date.strftime('%Y-%m-%d'),
+                                        link=config.DSCOVR_BASE_URL+"/#"+date.strftime(config.DATE_SHORTFORM),
                                         )
 
     if 'id' in post:
@@ -155,8 +158,11 @@ print "getting images for {date}".format(date=yesterday)
 imageData = getImagesInfo(yesterday)
 gif = None
 if len(imageData) > 0:
-    #Download images for yesterday
+    #Get yesterday headline from TheGuardian
+    print "obtaining yesterday headline from The Guardian"
     headline = getGuardianHeadline(date.today())
+    #Download images for yesterday
+    print "downloading images from DSCOVR"
     gifFramesArray = downloadImages(imageData, 'png', headline)
     print "obtained {x} images".format(x=len(gifFramesArray))
     #Generate the gif based on yesterday images
@@ -172,8 +178,7 @@ else:
 
 
 
-#Get yesterday headline from TheGuardian
-print "obtaining caption text from The Guardian"
+print "Writing Tumblr caption"
 text = writeCaption(yesterday, headline)
 
 print "Posting to Tumblr"

@@ -21,3 +21,16 @@ TWITTER_OAUTH_SECRET = ''
 
 #SYSTEM
 GIF_PATH = './earth.gif'
+
+#DATE
+DATE_LONGFORM = '%A, %B %d, %Y'
+DATE_SHORTFORM = '%Y-%m-%d'
+
+#METAPHORS
+EARTH_METAPHORS = [
+                    'on a pale blue dot suspended in a sunbeam',
+                    'aboard Spaceship Earth',
+                    'on the blue marble',
+                    'aboard a mote of dust suspended in a sunbeam',
+                    'on Earth'
+                  ]
