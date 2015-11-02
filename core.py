@@ -29,7 +29,7 @@ def downloadImages(imageNames, format, headline):
         path = config.DSCOVR_BASE_URL + config.DSCOVR_IMG_PATH.format(format=format, image=img)
 
         image = Image.fromarray(imageio.imread(path))
-        image = image.resize((768,768), Image.ANTIALIAS)
+        image = image.resize((600,600), Image.ANTIALIAS)
         im = writeOnImage(image, title)
 
         imageFrames.append(array(im))
@@ -40,13 +40,13 @@ def writeOnImage(image, headline):
     base = image.convert('RGBA')
 
     txt = Image.new('RGBA', base.size, (255,255,255,0))
-    fnt = ImageFont.truetype('./Anonymous.ttf', 25)
+    fnt = ImageFont.truetype('./Anonymous.ttf', 20)
     d = ImageDraw.Draw(txt)
-    height = 700
+    height = base.height - 50
     splitHeadline = textwrap.wrap(headline, 44)
     for line in splitHeadline:
         d.text((10,height), line, font=fnt, fill=(255,255,255,255))
-        height = height + 35
+        height = height + 22
 
     im = Image.alpha_composite(base, txt)
 
@@ -162,7 +162,7 @@ if len(imageData) > 0:
     print "obtaining yesterday headline from The Guardian"
     headline = getGuardianHeadline(date.today())
     #Download images for yesterday
-    print "downloading images from DSCOVR"
+    print "downloading images from DSCOVR and writing headline"
     gifFramesArray = downloadImages(imageData, 'png', headline)
     print "obtained {x} images".format(x=len(gifFramesArray))
     #Generate the gif based on yesterday images
