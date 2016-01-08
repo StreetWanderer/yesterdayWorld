@@ -2,8 +2,8 @@ from PIL import Image, ImageDraw, ImageFont
 from numpy import array
 import imageio, pytumblr, requests, tweepy
 
-import json, sys, textwrap, random
-from datetime import date, timedelta
+import json, sys, textwrap, random, re
+from datetime import date, timedelta, datetime
 
 import config
 
@@ -13,6 +13,10 @@ def getImagesInfo(date):
     #return ['epic_1b_20151022005948_00', 'epic_1b_20151022024751_00', 'epic_1b_20151022081200_00', 'epic_1b_20151022100003_00', 'epic_1b_20151022114806_00', 'epic_1b_20151022133609_00', 'epic_1b_20151022152413_00', 'epic_1b_20151022171216_00', 'epic_1b_20151022190018_00']
 
     imagesList = requests.get(config.DSCOVR_BASE_URL + config.DSCOVR_API_PATH, params={'date':date.strftime('%Y%m%d')})
+    if imagesList.status_code != requests.codes.ok:
+        print "Can't contact EPIC, stopping. HTTP error {code}".format(code=imagesList.status_code)
+        return
+
     jsonImages = json.loads(imagesList.text)
 
     parsedData = []
@@ -145,22 +149,70 @@ def postToTwitter(gifPath, text, tumblrId):
 
     print "Published to Twitter"
 
+def getAvailableDates():
+
+    request = requests.get(config.DSCOVR_BASE_URL + config.DSCOVR_API_PATH, params={'dates':''})
+    if request.status_code != requests.codes.ok:
+        print "Can't contact EPIC, stopping. HTTP error {code}".format(code=request.status_code)
+        return
+
+    result = re.search('(\[.*\])', request.text)
+    rawList = result.group(0)
+    jsonList = json.loads(rawList)
+
+    return jsonList
+
+def lastPostDate():
+    tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
+                                            config.TUMBLR_CONSUMER_SECRET,
+                                            config.TUMBLR_OAUTH_TOKEN,
+                                            config.TUMBLR_OAUTH_SECRET)
+    postList = tumblrClient.posts('yesterdaybot')
+
+    datePost = ''
+    if len(postList['posts']) > 0:
+
+        for tag in postList['posts'][0]['tags']:
+            try:
+                datePost = datetime.strptime(tag, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+    return datePost.strftime(config.DATE_SHORTFORM)
 
 
-#Find the images for yesterday
-yesterday = (date.today() - timedelta(1))
+def extractNextDate(date, dateList):
 
-if wasAlreadyPosted(yesterday):
-    print "Already posted, skipping"
+    try:
+        #index = dateList.index(datetime.strptime(date, "%Y-%m-%d"))
+        index = dateList.index(date)
+    except ValueError:
+        print "{date} not in list".format(date=date)
+        return None
+
+    if index + 1 < len(dateList):
+        return dateList[index + 1]
+    else:
+        return False
+
+
+dates = getAvailableDates()
+lastDate = lastPostDate()
+nextDateString = extractNextDate(lastDate, dates)
+if not nextDateString:
+    print "All was posted, skipping"
     sys.exit()
 
-print "getting images for {date}".format(date=yesterday)
-imageData = getImagesInfo(yesterday)
+nextDateImages = datetime.strptime(nextDateString, "%Y-%m-%d")
+nextDateHeadline = nextDateImages + timedelta(days=1)
+
+print "getting images for {date}".format(date=nextDateImages)
+imageData = getImagesInfo(nextDateImages)
 gif = None
 if len(imageData) > 0:
     #Get yesterday headline from TheGuardian
-    print "obtaining yesterday headline from The Guardian"
-    headline = getGuardianHeadline(date.today())
+    print "obtaining nextDateImages headline from The Guardian"
+    headline = getGuardianHeadline(nextDateHeadline)
     #Download images for yesterday
     print "downloading images from DSCOVR and writing headline"
     gifFramesArray = downloadImages(imageData, 'png', headline)
@@ -179,10 +231,10 @@ else:
 
 
 print "Writing Tumblr caption"
-text = writeCaption(yesterday, headline)
+text = writeCaption(nextDateImages, headline)
 
 print "Posting to Tumblr"
-post = postToTumblr(gif, text, yesterday)
+post = postToTumblr(gif, text, nextDateImages)
 
 print "Posting to Twitter"
 postToTwitter(gif, text, str(post['id']))
