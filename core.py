@@ -28,7 +28,11 @@ def getImagesInfo(date):
 def downloadImages(imageNames, format, headline):
     #Download the given DSCOVR images as a byteArray
     imageFrames = []
-    title = headline['fields']['headline'].encode('utf_8')
+    if len(headline) > 0:
+        title = headline['fields']['headline'].encode('utf_8')
+    else:
+        title = "Nothing of importance happened"
+
     for img in imageNames:
         path = config.DSCOVR_BASE_URL + config.DSCOVR_IMG_PATH.format(format=format, image=img)
 
@@ -77,15 +81,21 @@ def getGuardianHeadline(date):
 def writeCaption(date, headline):
     #Generate the text of the Tumblr post based on the Guadian Headline
     #headline = getGuardianHeadline(date + timedelta(1))
-    title = headline['fields']['headline'].encode('utf_8')
-    if 'trailText' in headline['fields']:
-        standfirst = headline['fields']['trailText']
+    if len(headline) > 0:
+        title = headline['fields']['headline'].encode('utf_8')
+        if 'trailText' in headline['fields']:
+            standfirst = headline['fields']['trailText']
+        else:
+            standfirst = headline['fields']['standfirst']
+        standfirst = standfirst.encode('utf_8')
+        webUrl = headline['webUrl']
+        #[FIXME] Noticed that trailText can contain html code, it's usually <strong>, do I leave it?
     else:
-        standfirst = headline['fields']['standfirst']
-    standfirst = standfirst.encode('utf_8')
-    #[FIXME] Noticed that trailText can contain html code, it's usually <strong>, do I leave it?
+        title = "Nothing of importance happened"
+        standfirst = ""
+        webUrl = "#"
 
-    formattedLink = '<a href="{link}">{headline}</a><br/>{standfirst}'.format(link=headline['webUrl'], headline=title, standfirst=standfirst)
+    formattedLink = '<a href="{link}">{headline}</a><br/>{standfirst}'.format(link=webUrl, headline=title, standfirst=standfirst)
     caption ="<p>On this great day of {date} {earth}.</p> We note that:<br/>{link}"
     tweet = "On {date} {earth}:"
 
@@ -211,7 +221,7 @@ imageData = getImagesInfo(nextDateImages)
 gif = None
 if len(imageData) > 0:
     #Get yesterday headline from TheGuardian
-    print "obtaining nextDateImages headline from The Guardian"
+    print "obtaining {date} headline from The Guardian".format(date=nextDateHeadline)
     headline = getGuardianHeadline(nextDateHeadline)
     #Download images for yesterday
     print "downloading images from DSCOVR and writing headline"
