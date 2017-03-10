@@ -1,4 +1,4 @@
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 from numpy import array
 import imageio, pytumblr, requests, tweepy
 
@@ -11,46 +11,53 @@ def getImagesInfo(date):
     #Get the list of images that DSCOVR took at the given date
 
     #return ['epic_1b_20151022005948_00', 'epic_1b_20151022024751_00', 'epic_1b_20151022081200_00', 'epic_1b_20151022100003_00', 'epic_1b_20151022114806_00', 'epic_1b_20151022133609_00', 'epic_1b_20151022152413_00', 'epic_1b_20151022171216_00', 'epic_1b_20151022190018_00']
+    nextDate = date + timedelta(days=1)
+    while nextDate <= datetime.today():
+        imagesList = requests.get(config.DSCOVR_BASE_URL + config.DSCOVR_API_PATH + 'date/' +nextDate.strftime(config.DATE_SHORTFORM))
+        if imagesList.status_code != requests.codes.ok:
+            print "Can't contact EPIC, stopping. HTTP error {code}".format(code=imagesList.status_code)
+            nextDate = nextDate + timedelta(days=1)
+            continue
+            #return None, nextDate
 
-    imagesList = requests.get(config.DSCOVR_BASE_URL + config.DSCOVR_API_PATH, params={'date':date.strftime('%Y%m%d')})
-    if imagesList.status_code != requests.codes.ok:
-        print "Can't contact EPIC, stopping. HTTP error {code}".format(code=imagesList.status_code)
-        return
+        jsonImages = json.loads(imagesList.text)
 
-    jsonImages = json.loads(imagesList.text)
+        if len(jsonImages) > 0:
+            parsedData = []
+            for img in jsonImages:
+                parsedData.append(img['image'])
+            return parsedData, nextDate
+        else:
+            nextDate = nextDate + timedelta(days=1)
 
-    parsedData = []
-    for img in jsonImages:
-        parsedData.append(img['image'])
+    return None, nextDate
 
-    return parsedData;
-
-def downloadImages(imageNames, format, headline):
+def downloadImages(imageNames, format, headline, date):
     #Download the given DSCOVR images as a byteArray
     imageFrames = []
     if len(headline) > 0:
-        title = headline['fields']['headline'].encode('utf_8')
+        title = headline['fields']['headline']
     else:
         title = "Nothing of importance happened"
 
     for img in imageNames:
-        path = config.DSCOVR_BASE_URL + config.DSCOVR_IMG_PATH.format(format=format, image=img)
-
+        path = config.DSCOVR_BASE_URL + config.DSCOVR_IMG_PATH.format(format=format, image=img, date=(date).strftime(config.DATE_PATH))
         image = Image.fromarray(imageio.imread(path))
         image = image.resize((600,600), Image.ANTIALIAS)
         im = writeOnImage(image, title)
 
         imageFrames.append(array(im))
+        imageFrames.append(array(im)) #putting double frames to improve playback smoothness on Twitter
 
     return imageFrames
 
 def writeOnImage(image, headline):
     base = image.convert('RGBA')
-
+    base = ImageChops.offset(base, 0, -60)
     txt = Image.new('RGBA', base.size, (255,255,255,0))
     fnt = ImageFont.truetype('./Anonymous.ttf', 20)
     d = ImageDraw.Draw(txt)
-    height = base.height - 50
+    height = base.height - 70
     splitHeadline = textwrap.wrap(headline, 44)
     for line in splitHeadline:
         d.text((10,height), line, font=fnt, fill=(255,255,255,255))
@@ -110,20 +117,6 @@ def writeCaption(date, headline):
 
     return {'caption':caption, 'tweet':tweet}
 
-def wasAlreadyPosted(date):
-
-    tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
-                                            config.TUMBLR_CONSUMER_SECRET,
-                                            config.TUMBLR_OAUTH_TOKEN,
-                                            config.TUMBLR_OAUTH_SECRET)
-    postList = tumblrClient.posts('yesterdaybot', tag=date.strftime(config.DATE_SHORTFORM))
-
-    if len(postList['posts']) > 0:
-        if date.strftime(config.DATE_SHORTFORM) in postList['posts'][0]['tags']:
-            return True
-
-    return False
-
 def postToTumblr(gifPath, text, date):
 	#create the post on Tumblr.
     tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
@@ -159,19 +152,6 @@ def postToTwitter(gifPath, text, tumblrId):
 
     print "Published to Twitter"
 
-def getAvailableDates():
-
-    request = requests.get(config.DSCOVR_BASE_URL + config.DSCOVR_API_PATH, params={'dates':''})
-    if request.status_code != requests.codes.ok:
-        print "Can't contact EPIC, stopping. HTTP error {code}".format(code=request.status_code)
-        return
-
-    result = re.search('(\[.*\])', request.text)
-    rawList = result.group(0)
-    jsonList = json.loads(rawList)
-
-    return jsonList
-
 def lastPostDate():
     tumblrClient = pytumblr.TumblrRestClient(config.TUMBLR_CONSUMER_KEY,
                                             config.TUMBLR_CONSUMER_SECRET,
@@ -184,67 +164,45 @@ def lastPostDate():
 
         for tag in postList['posts'][0]['tags']:
             try:
-                datePost = datetime.strptime(tag, "%Y-%m-%d")
+                datePost = datetime.strptime(tag, config.DATE_SHORTFORM)
             except ValueError:
                 continue
 
-    return datePost.strftime(config.DATE_SHORTFORM)
+    return datePost#.strftime(config.DATE_SHORTFORM)
 
 
-def extractNextDate(date, dateList):
-
-    try:
-        #index = dateList.index(datetime.strptime(date, "%Y-%m-%d"))
-        index = dateList.index(date)
-    except ValueError:
-        print "{date} not in list".format(date=date)
-        return None
-
-    if index + 1 < len(dateList):
-        return dateList[index + 1]
-    else:
-        return False
-
-
-dates = getAvailableDates()
 lastDate = lastPostDate()
-nextDateString = extractNextDate(lastDate, dates)
-if not nextDateString:
+print "getting images and next date after {date}".format(date=lastDate.date())
+imageData, nextDateImages = getImagesInfo(lastDate)
+
+if imageData is None and nextDateImages is None:
+    print "The world stopped"
+    #Use a gif from Giphy (i.e. "World stopped") as illustration?
+    sys.exit(1)
+elif imageData is None and nextDateImages.date() == datetime.today().date() + timedelta(days=1):
     print "All was posted, skipping"
     sys.exit()
 
-nextDateImages = datetime.strptime(nextDateString, "%Y-%m-%d")
+print "got list of {num} images for {date}".format(date=nextDateImages.date(), num=len(imageData))
 nextDateHeadline = nextDateImages + timedelta(days=1)
 
-print "getting images for {date}".format(date=nextDateImages)
-imageData = getImagesInfo(nextDateImages)
-gif = None
-if len(imageData) > 0:
-    #Get yesterday headline from TheGuardian
-    print "obtaining {date} headline from The Guardian".format(date=nextDateHeadline)
-    headline = getGuardianHeadline(nextDateHeadline)
-    #Download images for yesterday
-    print "downloading images from DSCOVR and writing headline"
-    gifFramesArray = downloadImages(imageData, 'png', headline)
-    print "obtained {x} images".format(x=len(gifFramesArray))
-    #Generate the gif based on yesterday images
-    print "generating gif..."
-    imageio.mimwrite(config.GIF_PATH, gifFramesArray, loop=0, duration=0.6, quantizer='wu', subrectangles=False)
-    print "gif saved to {gif}".format(gif=config.GIF_PATH)
-    gif = config.GIF_PATH
-else:
-    print "The world stopped"
-    sys.exit()
-    #gif = config.GIF_PATH_NODATA
-    #Use a gif from Giphy (i.e. "World stopped") as illustration?
-
-
+#Get yesterday headline from TheGuardian
+print "obtaining {date} headline from The Guardian".format(date=nextDateHeadline.date())
+headline = getGuardianHeadline(nextDateHeadline)
+#Download images for yesterday
+print "downloading images from DSCOVR and writing headline"
+gifFramesArray = downloadImages(imageData, 'png', headline, nextDateImages)
+print "obtained {x} frames".format(x=len(gifFramesArray))
+#Generate the gif based on yesterday images
+print "generating gif..."
+imageio.mimwrite(config.GIF_PATH, gifFramesArray, loop=0, fps=6, subrectangles=False)
+print "gif saved to {gif}".format(gif=config.GIF_PATH)
 
 print "Writing Tumblr caption"
 text = writeCaption(nextDateImages, headline)
 
 print "Posting to Tumblr"
-post = postToTumblr(gif, text, nextDateImages)
+post = postToTumblr(config.GIF_PATH, text, nextDateImages)
 
 print "Posting to Twitter"
-postToTwitter(gif, text, str(post['id']))
+postToTwitter(config.GIF_PATH, text, str(post['id']))

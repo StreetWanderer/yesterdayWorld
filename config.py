@@ -1,7 +1,6 @@
-#DSCOVR
-DSCOVR_BASE_URL = 'http://epic.gsfc.nasa.gov'
-DSCOVR_API_PATH = '/api/images.php'
-DSCOVR_IMG_PATH = '/epic-archive/{format}/{image}.{format}'
+DSCOVR_BASE_URL = 'https://epic.gsfc.nasa.gov'
+DSCOVR_API_PATH = '/api/enhanced/'
+DSCOVR_IMG_PATH = '/archive/enhanced/{date}/{format}/{image}.{format}'
 
 #GUARDIAN
 GUARDIAN_APIKEY = ''
@@ -22,9 +21,11 @@ TWITTER_OAUTH_SECRET = ''
 #SYSTEM
 GIF_PATH = './earth.gif'
 
+
 #DATE
 DATE_LONGFORM = '%A, %B %d, %Y'
 DATE_SHORTFORM = '%Y-%m-%d'
+DATE_PATH = '%Y/%m/%d'
 
 #METAPHORS
 EARTH_METAPHORS = [
