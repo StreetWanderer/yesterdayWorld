@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 from numpy import array
-import imageio, pytumblr, requests, tweepy
+import imageio, pytumblr, requests, twitter
 
 import json, sys, textwrap, random, re
 from datetime import date, timedelta, datetime
@@ -129,7 +129,7 @@ def postToTumblr(gifPath, text, date):
                                         data=gifPath,
                                         caption=text['caption'],
                                         tweet=text['tweet'],
-                                        link=config.DSCOVR_BASE_URL+"/#"+date.strftime(config.DATE_SHORTFORM),
+                                        link=config.DSCOVR_BASE_URL+"/?date="+date.strftime(config.DATE_SHORTFORM),
                                         )
 
     if 'id' in post:
@@ -142,13 +142,12 @@ def postToTumblr(gifPath, text, date):
 
 def postToTwitter(gifPath, text, tumblrId):
 
-    auth = tweepy.OAuthHandler(config.TWITTER_CONSUMER_KEY, config.TWITTER_CONSUMER_SECRET)
-    auth.set_access_token(config.TWITTER_OAUTH_TOKEN, config.TWITTER_OAUTH_SECRET)
+    api = twitter.Api( consumer_key=config.TWITTER_CONSUMER_KEY,
+                        consumer_secret=config.TWITTER_CONSUMER_SECRET,
+                        access_token_key=config.TWITTER_OAUTH_TOKEN,
+                        access_token_secret=config.TWITTER_OAUTH_SECRET)
 
-    api = tweepy.API(auth)
-
-    api.update_with_media(filename=gifPath, status=text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId))
-    #api.update_status(status='Hello World')
+    api.PostUpdate(text['tweet'].format(link='http://yesterdaybot.tumblr.com/post/'+tumblrId), media=gifPath)
 
     print "Published to Twitter"
 
@@ -195,7 +194,7 @@ gifFramesArray = downloadImages(imageData, 'png', headline, nextDateImages)
 print "obtained {x} frames".format(x=len(gifFramesArray))
 #Generate the gif based on yesterday images
 print "generating gif..."
-imageio.mimwrite(config.GIF_PATH, gifFramesArray, loop=0, fps=6, subrectangles=False)
+imageio.mimwrite(config.GIF_PATH, gifFramesArray, loop=0, fps=6, subrectangles=True)
 print "gif saved to {gif}".format(gif=config.GIF_PATH)
 
 print "Writing Tumblr caption"
